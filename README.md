@@ -21,6 +21,13 @@ CloudJian 前端。本仓库目前是**脚手架**：构建产物推到 S3 的 `
 
 该角色只能写 `s3://<bucket>/web/*`、只能对这一个分发做失效、只能读 `/cloudjian/*` 参数。
 
+## 发布路径
+
+CDN 的 viewer-request Function 只放行 `/web/*` 与 `/users/{uuid}/assets/public/*`，
+其余带扩展名的路径一律 403，只有**无扩展名**路径会被 rewrite 到 `/web/index.html`。
+所以 `vite.config.ts` 里 `base: '/web/'` 是硬要求（否则页面引用的 `/assets/*.js` 会被 403），
+发布后也只能从根路径 `https://<cdn-domain>/` 探测。
+
 ## 部署契约
 
 构建期从 SSM 读出来注入为 `VITE_*` 环境变量（`src/vite-env.d.ts` 有类型）：
