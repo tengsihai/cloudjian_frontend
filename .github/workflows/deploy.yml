@@ -1,0 +1,111 @@
+# 发布流水线
+# push 到 release：校验「必须是已合并 PR 的 commit」→ OIDC 取临时凭证 →
+# 从 SSM 读部署契约 → 构建 → s3 sync 到 web/ → 失效 CDN → 线上探测。
+# 静态资源只写 s3://<bucket>/web/，桶与分发归 cloudjian_infra。
+name: deploy
+
+on:
+  push:
+    branches: [release]
+
+permissions:
+  contents: read
+  pull-requests: read
+  id-token: write
+
+concurrency:
+  group: deploy-release
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-northeast-1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify commit came from a merged PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SHA="${GITHUB_SHA}"
+          MATCH=$(gh pr list --repo "${GITHUB_REPOSITORY}" --state merged --search "${SHA}" --json number,mergeCommit --jq ".[] | select(.mergeCommit.oid==\"${SHA}\") | .number" || true)
+          if [ -z "${MATCH}" ]; then
+            MATCH=$(gh pr list --repo "${GITHUB_REPOSITORY}" --state merged --search "${SHA}" --json number --jq ".[].number" || true)
+          fi
+          if [ -z "${MATCH}" ]; then
+            echo "::error::commit ${SHA} 未关联任何已合并 PR（禁止直推部署）"
+            exit 1
+          fi
+          echo "OK: linked PR #${MATCH}"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Read deploy contract from SSM
+        run: |
+          get() { aws ssm get-parameter --name "$1" --query Parameter.Value --output text; }
+          {
+            echo "BUCKET=$(get /cloudjian/bucket)"
+            echo "CDN_DOMAIN=$(get /cloudjian/cdn-domain)"
+            echo "CDN_ARN=$(get /cloudjian/cdn-arn)"
+            echo "API_URL=$(get /cloudjian/api-url)"
+            echo "USER_POOL_ID=$(get /cloudjian/user-pool-id)"
+            echo "CLIENT_ID=$(get /cloudjian/client-id)"
+          } >> "$GITHUB_ENV"
+
+      - run: npm ci
+
+      - name: Build
+        env:
+          VITE_API_URL: ${{ env.API_URL }}
+          VITE_USER_POOL_ID: ${{ env.USER_POOL_ID }}
+          VITE_CLIENT_ID: ${{ env.CLIENT_ID }}
+          VITE_BUILD_SHA: ${{ github.sha }}
+          VITE_BUILD_TIME: ${{ github.event.head_commit.timestamp }}
+        run: npm run build
+
+      # 带 hash 的资源长缓存；index.html 不缓存，保证发版即时生效。
+      - name: Upload to S3
+        run: |
+          aws s3 sync dist/ "s3://${BUCKET}/web/" --delete \
+            --exclude "index.html" \
+            --cache-control "public,max-age=31536000,immutable"
+          aws s3 cp dist/index.html "s3://${BUCKET}/web/index.html" \
+            --cache-control "no-cache,must-revalidate" \
+            --content-type "text/html; charset=utf-8"
+
+      - name: Invalidate CDN
+        run: |
+          DIST_ID="${CDN_ARN##*/}"
+          aws cloudfront create-invalidation --distribution-id "${DIST_ID}" --paths "/*" \
+            --query 'Invalidation.Id' --output text
+
+      # 失效生效有延迟，轮询首页直到拿到新构建产物
+      - name: Verify live
+        run: |
+          URL="https://${CDN_DOMAIN}/index.html"
+          BODY=""
+          for i in $(seq 1 12); do
+            BODY=$(curl -fsS "${URL}" || true)
+            echo "${BODY}" | grep -q "assets/" && break
+            echo "第 ${i} 次还未生效，等 10s…"
+            sleep 10
+          done
+          echo "${BODY}" | grep -q "assets/" || { echo "::error::首页未引用构建产物"; exit 1; }
+          ASSET=$(echo "${BODY}" | grep -o 'assets/[^"]*\.js' | head -1)
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' "https://${CDN_DOMAIN}/${ASSET}")
+          echo "https://${CDN_DOMAIN}/${ASSET} -> ${CODE}"
+          [ "${CODE}" = "200" ] || exit 1
