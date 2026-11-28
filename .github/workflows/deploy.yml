@@ -93,19 +93,20 @@ jobs:
           aws cloudfront create-invalidation --distribution-id "${DIST_ID}" --paths "/*" \
             --query 'Invalidation.Id' --output text
 
-      # 失效生效有延迟，轮询首页直到拿到新构建产物
+      # CDN 白名单只放行 /web/*，无扩展名的 / 会被 rewrite 到 /web/index.html；
+      # /index.html 这类带扩展名的非白名单路径一律 403，所以只能从根路径探测。
       - name: Verify live
         run: |
-          URL="https://${CDN_DOMAIN}/index.html"
+          ROOT="https://${CDN_DOMAIN}/"
           BODY=""
           for i in $(seq 1 12); do
-            BODY=$(curl -fsS "${URL}" || true)
-            echo "${BODY}" | grep -q "assets/" && break
+            BODY=$(curl -fsS "${ROOT}" || true)
+            echo "${BODY}" | grep -q "/web/assets/" && break
             echo "第 ${i} 次还未生效，等 10s…"
             sleep 10
           done
-          echo "${BODY}" | grep -q "assets/" || { echo "::error::首页未引用构建产物"; exit 1; }
-          ASSET=$(echo "${BODY}" | grep -o 'assets/[^"]*\.js' | head -1)
-          CODE=$(curl -s -o /dev/null -w '%{http_code}' "https://${CDN_DOMAIN}/${ASSET}")
-          echo "https://${CDN_DOMAIN}/${ASSET} -> ${CODE}"
+          echo "${BODY}" | grep -q "/web/assets/" || { echo "::error::首页未引用 /web/assets/ 构建产物"; exit 1; }
+          ASSET=$(echo "${BODY}" | grep -o '/web/assets/[^"]*\.js' | head -1)
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' "https://${CDN_DOMAIN}${ASSET}")
+          echo "https://${CDN_DOMAIN}${ASSET} -> ${CODE}"
           [ "${CODE}" = "200" ] || exit 1
