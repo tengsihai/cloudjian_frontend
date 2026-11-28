@@ -53,5 +53,14 @@ npm run typecheck
 npm run build
 ```
 
-本地 `VITE_*` 为空属正常（页面会提示「未注入」）。不要本地往 S3 推、不要本地做 CDN 失效：
-发布只能由 `deploy.yml` 执行。
+本地 `VITE_*` 为空时走 **mock API + 演示账号**（`src/lib/mock.ts`），不依赖后端。
+要连真实环境，在 `.env.local` 填：
+
+```bash
+VITE_API_URL=https://<api-id>.execute-api.ap-northeast-1.amazonaws.com/dev
+VITE_USER_POOL_ID=ap-northeast-1_xxxxxxx
+VITE_CLIENT_ID=xxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+`VITE_API_URL` 非空即走真实 HTTP 接口与 Cognito SRP；`VITE_USER_POOL_ID`/`VITE_CLIENT_ID` 缺失时仍用演示账号。
+不要本地往 S3 推、不要本地做 CDN 失效：发布只能由 `deploy.yml` 执行。

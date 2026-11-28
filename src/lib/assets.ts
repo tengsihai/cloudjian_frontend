@@ -93,15 +93,15 @@ export async function uploadImage(
     content_type: prepared.content_type,
     size: prepared.file.size,
   });
-  const preview_url = await api.uploadMockAsset(presign.asset_id, prepared.file);
+  const uploaded = await api.uploadMockAsset(presign.asset_id, prepared.file);
   const registered = await api.registerAsset({
     note_id: input.note_id,
     asset_id: presign.asset_id,
     key: presign.key,
-    etag: 'mock-upload',
+    etag: uploaded.etag,
     size: prepared.file.size,
     content_type: prepared.content_type,
-    preview_url,
+    preview_url: uploaded.preview_url,
   });
   cacheAssetPreview(registered.asset_id, registered.preview_url);
   return {

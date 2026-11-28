@@ -87,9 +87,11 @@ export interface ShareCandidate {
 
 export interface VersionItem {
   ts: number;
-  version: number;
   size: number;
-  author: string;
+  /** 04 版本列表只保证 ts/size/created_at；version/author 为可选展示字段 */
+  created_at?: number;
+  version?: number;
+  author?: string;
 }
 
 export interface VersionDetail extends VersionItem {
@@ -141,7 +143,7 @@ export interface TeamConfig {
   default_note_visibility: Visibility;
   force_private: boolean;
   version: number;
-  updated_at: number;
+  updated_at?: number;
 }
 
 export interface Job {

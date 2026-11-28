@@ -691,9 +691,9 @@ function sharedItems(db: MockDb, share: ShareItem, path: string, depth: number):
 }
 
 export const mockApi = {
-  reset() {
+  reset(): void {
     localStorage.removeItem(DB_KEY);
-    return seed();
+    seed();
   },
 
   async getProfile(): Promise<Profile> {
@@ -1387,7 +1387,7 @@ export const mockApi = {
     return user;
   },
 
-  async deleteUser(userUuid: string): Promise<{ job_id: string }> {
+  async deleteUser(userUuid: string, _username?: string): Promise<{ job_id: string }> {
     await delay();
     const db = loadDb();
     const user = db.users.find((entry) => entry.user_uuid === userUuid);
@@ -1502,11 +1502,11 @@ export const mockApi = {
     };
   },
 
-  async uploadMockAsset(assetId: string, file: Blob): Promise<string> {
+  async uploadMockAsset(assetId: string, file: Blob): Promise<{ preview_url: string; etag: string }> {
     await delay(220);
     const preview = file.size <= 300_000 ? await blobToDataUrl(file) : URL.createObjectURL(file);
     objectUrls.set(assetId, preview);
-    return preview;
+    return { preview_url: preview, etag: 'mock-upload' };
   },
 
   async registerAsset(input: {
