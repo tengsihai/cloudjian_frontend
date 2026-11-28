@@ -1631,6 +1631,33 @@ export const mockApi = {
     saveDb(db);
   },
 
+  async rebuildIndex(input: { user_uuid?: string } = {}): Promise<{ job_id: string }> {
+    await delay(240);
+    void input;
+    const db = loadDb();
+    const running = db.jobs.find((entry) => entry.type === 'rebuild_index' && entry.status === 'running');
+    if (running) throw new ApiError(409, '相关任务进行中，请稍后再试', 'JOB_RUNNING');
+    const job: Job = {
+      job_id: uid('job'),
+      type: 'rebuild_index',
+      status: 'running',
+      progress: 0,
+      total: 1,
+    };
+    db.jobs.push(job);
+    saveDb(db);
+    window.setTimeout(() => {
+      const next = loadDb();
+      const target = next.jobs.find((entry) => entry.job_id === job.job_id);
+      if (target) {
+        target.status = 'done';
+        target.progress = 1;
+        saveDb(next);
+      }
+    }, 1600);
+    return { job_id: job.job_id };
+  },
+
   async getJob(jobId: string): Promise<Job> {
     await delay(80);
     const db = loadDb();

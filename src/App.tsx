@@ -1,8 +1,10 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { RequireAdmin, RequireAuth } from './app/AuthContext';
 import { AppShell } from './components/AppShell';
+import { AdminIndexPage } from './pages/AdminIndexPage';
 import { AdminTeamPage } from './pages/AdminTeamPage';
 import { AdminUsersPage } from './pages/AdminUsersPage';
+import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { ForbiddenPage, NotFoundPage } from './pages/ErrorPages';
 import { LoginPage } from './pages/LoginPage';
 import { NotesPage } from './pages/NotesPage';
@@ -14,6 +16,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/change-password" element={<ChangePasswordPage />} />
       <Route path="/p/:token" element={<PublicNotePage />} />
       <Route path="/403" element={<ForbiddenPage />} />
       <Route path="/404" element={<NotFoundPage />} />
@@ -32,6 +35,7 @@ export default function App() {
             <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
             <Route path="/admin/users" element={<AdminUsersPage />} />
             <Route path="/admin/team" element={<AdminTeamPage />} />
+            <Route path="/admin/index" element={<AdminIndexPage />} />
           </Route>
         </Route>
       </Route>
