@@ -88,6 +88,13 @@ export const realApi = {
     return { items: res.data.items };
   },
 
+  async createDir(input: { path: string; name: string }): Promise<{ path: string }> {
+    const res = await request<{ path: string }>('POST', '/dirs', {
+      body: { path: input.path, name: input.name },
+    });
+    return res.data;
+  },
+
   async getNotes(params: {
     category_path?: string;
     all?: boolean;

@@ -58,6 +58,8 @@ interface MockDb {
   assets: Record<string, MockAsset>;
   trashedNotes: MockNote[];
   trashedDirs: TrashedDir[];
+  /** 显式创建的空目录（真实后端靠 .dir_meta.json 存在，mock 用这份列表兜住）。 */
+  dirs: string[];
   shares: ShareItem[];
   versions: Record<string, VersionDetail[]>;
   team: TeamConfig;
@@ -426,6 +428,7 @@ function seed(): MockDb {
       }),
     ],
     trashedDirs: [{ path: '工作/旧项目/归档', name: '归档', deleted_at: T - 5 * DAY }],
+    dirs: [],
     shares,
     versions,
     team: {
@@ -445,6 +448,7 @@ function loadDb(): MockDb {
     if (raw) {
       const db = JSON.parse(raw) as MockDb;
       db.assets ??= {};
+      db.dirs ??= [];
       for (const asset of Object.values(db.assets ?? {})) {
         if (asset.preview_url.startsWith('data:')) {
           objectUrls.set(asset.asset_id, asset.preview_url);
@@ -634,6 +638,19 @@ function dirPaths(notes: MockNote[]) {
   return set;
 }
 
+/** 本人目录集合：笔记路径推导 + 显式创建的空目录。 */
+function ownDirPaths(db: MockDb): Set<string> {
+  const own = db.notes.filter((item) => item.owner_uuid === db.me.user_uuid);
+  const set = dirPaths(own);
+  for (const dir of db.dirs ?? []) {
+    const parts = dir.split('/').filter(Boolean);
+    for (let i = 1; i <= parts.length; i += 1) {
+      set.add(parts.slice(0, i).join('/'));
+    }
+  }
+  return set;
+}
+
 function sharedItems(db: MockDb, share: ShareItem, path: string, depth: number): DirItem[] {
   if (share.target_type === 'note') {
     return [];
@@ -718,7 +735,7 @@ export const mockApi = {
 
     if (scope === 'mine') {
       const own = db.notes.filter((item) => item.owner_uuid === db.me.user_uuid);
-      const allDirs = dirPaths(own);
+      const allDirs = ownDirPaths(db);
       const directDirs = [...allDirs].filter((dir) => dir !== path && dirname(dir) === path);
       const directNotes = own.filter((item) => item.category_path === path);
       const items: DirItem[] = [];
@@ -861,6 +878,31 @@ export const mockApi = {
     return { ...toDetail(db, item, share), etag: item.etag };
   },
 
+  async createDir(input: { path: string; name: string }): Promise<{ path: string }> {
+    await delay();
+    const db = loadDb();
+    const parent = input.path.trim().replace(/^\/+|\/+$/g, '');
+    const name = input.name.trim();
+    if (!name || name.includes('/') || name.includes('\\') || name.startsWith('.')) {
+      throw new ApiError(400, '目录名不合法', 'DIR_NAME_INVALID');
+    }
+    if (parent && !ownDirPaths(db).has(parent)) {
+      throw new ApiError(404, '目录不存在', 'DIR_NOT_FOUND');
+    }
+    const full = parent ? `${parent}/${name}` : name;
+    const duplicated =
+      ownDirPaths(db).has(full) ||
+      db.notes.some(
+        (item) => item.owner_uuid === db.me.user_uuid && item.category_path === parent && item.slug === name,
+      );
+    if (duplicated) {
+      throw new ApiError(409, '目录已存在', 'DIR_EXISTS');
+    }
+    db.dirs = [...(db.dirs ?? []), full];
+    saveDb(db);
+    return { path: full };
+  },
+
   async createNote(input: {
     title?: string;
     category_path: string;
@@ -881,6 +923,8 @@ export const mockApi = {
         throw new ApiError(403, '目录与共享根不匹配', 'NOTE_FORBIDDEN');
       }
       owner = share.owner_uuid;
+    } else if (input.category_path && !ownDirPaths(db).has(input.category_path)) {
+      throw new ApiError(404, '目录不存在', 'DIR_NOT_FOUND');
     }
     const title = (input.title ?? '').trim() || '未命名笔记';
     const baseSlug = slugify(title);
