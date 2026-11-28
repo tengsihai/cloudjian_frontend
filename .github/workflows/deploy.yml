@@ -110,3 +110,9 @@ jobs:
           CODE=$(curl -s -o /dev/null -w '%{http_code}' "https://${CDN_DOMAIN}${ASSET}")
           echo "https://${CDN_DOMAIN}${ASSET} -> ${CODE}"
           [ "${CODE}" = "200" ] || exit 1
+
+      # 每 key 单一写方：release/frontend 只由本仓 CI 写（infra 不创建、不改值）
+      - name: Record release
+        run: |
+          aws ssm put-parameter --name /cloudjian/release/frontend --overwrite --type String \
+            --value "{\"commit\":\"${GITHUB_SHA}\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"by\":\"frontend-ci\"}"
