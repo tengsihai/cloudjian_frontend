@@ -9,6 +9,8 @@ import {
   PlusOutlined,
 } from '@ant-design/icons';
 import { api } from '../lib/api';
+import { useAuth } from '../app/AuthContext';
+import { readDirCache, writeDirCache } from '../lib/dirCache';
 import { canNavigate, requestNewNote } from '../lib/events';
 import type { DirItem, ShareItem } from '../lib/types';
 import { baseName, dirName } from '../lib/paths';
@@ -46,10 +48,21 @@ export function MineTree() {
   const location = useLocation();
   const currentDir = new URLSearchParams(location.search).get('dir') ?? '';
   const match = useMatch('/notes/:noteId');
+  const { session } = useAuth();
+  const userUuid = session?.user.user_uuid ?? 'anonymous';
   const root = useQuery({
-    queryKey: ['dirs', 'mine', ''],
+    queryKey: ['dirs', 'mine', userUuid, ''],
     queryFn: () => api.getDirs({ scope: 'mine', path: '' }),
+    initialData: () => {
+      const items = readDirCache(userUuid, '');
+      return items ? { items } : undefined;
+    },
+    staleTime: 0,
   });
+
+  useEffect(() => {
+    if (root.data) writeDirCache(userUuid, '', root.data.items);
+  }, [userUuid, root.data]);
 
   if (root.isLoading) {
     return (
@@ -95,12 +108,23 @@ function MineDirNode({
   activeNote: string | null;
 }) {
   const go = useTreeNavigate();
+  const { session } = useAuth();
+  const userUuid = session?.user.user_uuid ?? 'anonymous';
   const [open, setOpen] = useState(currentDir === item.path || currentDir.startsWith(`${item.path}/`));
   const children = useQuery({
-    queryKey: ['dirs', 'mine', item.path],
+    queryKey: ['dirs', 'mine', userUuid, item.path],
     queryFn: () => api.getDirs({ scope: 'mine', path: item.path }),
+    initialData: () => {
+      const items = readDirCache(userUuid, item.path);
+      return items ? { items } : undefined;
+    },
+    staleTime: 0,
     enabled: open,
   });
+
+  useEffect(() => {
+    if (children.data) writeDirCache(userUuid, item.path, children.data.items);
+  }, [userUuid, item.path, children.data]);
 
   useEffect(() => {
     if (currentDir && (currentDir === item.path || currentDir.startsWith(`${item.path}/`))) {
