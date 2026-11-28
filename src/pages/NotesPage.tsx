@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Tooltip } from 'antd';
-import { FolderOutlined, PlusOutlined, ShareAltOutlined } from '@ant-design/icons';
+import { FolderAddOutlined, FolderOutlined, PlusOutlined, ShareAltOutlined } from '@ant-design/icons';
 import { api } from '../lib/api';
 import { canNavigate, onNewNote, setNavGuard } from '../lib/events';
 import { baseName } from '../lib/paths';
@@ -70,6 +70,7 @@ function MinePane({ dir }: { dir: string }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [newDir, setNewDir] = useState<string | null>(null);
+  const [newDirParent, setNewDirParent] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(
@@ -100,6 +101,21 @@ function MinePane({ dir }: { dir: string }) {
     onError: (err) => toast(`新建失败：${errorText(err)}`, 'error'),
   });
 
+  const createDir = useMutation({
+    mutationFn: (input: { name: string; path: string }) => api.createDir(input),
+    onSuccess: (created) => {
+      setNewDirParent(null);
+      void queryClient.invalidateQueries({ queryKey: ['dirs'] });
+      toast('目录已创建');
+      if (!canNavigate()) {
+        toast('目录已创建；当前笔记尚未保存，已留在本页');
+        return;
+      }
+      navigate(`/notes?dir=${encodeURIComponent(created.path)}`);
+    },
+    onError: (err) => toast(`新建目录失败：${errorText(err)}`, 'error'),
+  });
+
   return (
     <section className="list-pane">
       <div className="list-head tree-head">
@@ -113,6 +129,16 @@ function MinePane({ dir }: { dir: string }) {
               </button>
             </Tooltip>
           )}
+          <Tooltip title={dir ? `在「${baseName(dir)}」下新建目录` : '在根目录新建目录'}>
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label="新建目录"
+              onClick={() => setNewDirParent(dir)}
+            >
+              <FolderAddOutlined />
+            </button>
+          </Tooltip>
           <Tooltip title={dir ? `在「${baseName(dir)}」下新建笔记` : '在根目录新建笔记'}>
             <button type="button" className="btn sm primary" onClick={() => setNewDir(dir)}>
               <PlusOutlined /> 新建
@@ -136,6 +162,13 @@ function MinePane({ dir }: { dir: string }) {
         busy={create.isPending}
         onClose={() => setNewDir(null)}
         onSubmit={(title, categoryPath) => create.mutate({ title, category_path: categoryPath })}
+      />
+      <NewDirModal
+        open={newDirParent !== null}
+        initialParent={newDirParent ?? dir}
+        busy={createDir.isPending}
+        onClose={() => setNewDirParent(null)}
+        onSubmit={(name, parent) => createDir.mutate({ name, path: parent })}
       />
       <ShareDrawer
         open={shareOpen}
@@ -311,7 +344,85 @@ export function NewNoteModal({
             placeholder="留空表示根目录，例如：工作/2026/Q4"
             onChange={(event) => setTargetDir(event.target.value)}
           />
-          <p className="caption" style={{ marginTop: 5 }}>目录不存在时会自动创建。</p>
+          <p className="caption" style={{ marginTop: 5 }}>目录需已存在；不存在时请先选择或新建目录。</p>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+export function NewDirModal({
+  open,
+  initialParent,
+  busy,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean;
+  initialParent: string;
+  busy: boolean;
+  onClose: () => void;
+  onSubmit: (name: string, parent: string) => void;
+}) {
+  const [name, setName] = useState('');
+  const [parent, setParent] = useState(initialParent);
+
+  useEffect(() => {
+    if (open) {
+      setName('');
+      setParent(initialParent);
+    }
+  }, [open, initialParent]);
+
+  const disabled = !name.trim() || busy;
+
+  return (
+    <Modal
+      open={open}
+      title="新建目录"
+      width={480}
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="btn" onClick={onClose} disabled={busy}>
+            取消
+          </button>
+          <button
+            type="button"
+            className="btn primary"
+            disabled={disabled}
+            onClick={() => onSubmit(name.trim(), parent.trim())}
+          >
+            {busy ? '创建中…' : '创建目录'}
+          </button>
+        </>
+      }
+    >
+      <div style={{ display: 'grid', gap: 14 }}>
+        <div>
+          <label className="label" htmlFor="new-dir-name">目录名</label>
+          <input
+            id="new-dir-name"
+            className="field"
+            value={name}
+            autoFocus
+            placeholder="例如：项目A"
+            onChange={(event) => setName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !disabled) onSubmit(name.trim(), parent.trim());
+            }}
+          />
+        </div>
+        <div>
+          <label className="label" htmlFor="new-dir-parent">父目录</label>
+          <input
+            id="new-dir-parent"
+            className="field"
+            value={parent}
+            placeholder="留空表示根目录，例如：工作/2026"
+            onChange={(event) => setParent(event.target.value)}
+          />
+          <p className="caption" style={{ marginTop: 5 }}>父目录必须已存在；重名会提示已存在。</p>
         </div>
       </div>
     </Modal>
