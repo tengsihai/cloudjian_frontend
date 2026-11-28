@@ -5,6 +5,7 @@ import { Dropdown, Tooltip } from 'antd';
 import type { MenuProps } from 'antd';
 import {
   BulbOutlined,
+  DatabaseOutlined,
   DeleteOutlined,
   FileTextOutlined,
   GlobalOutlined,
@@ -70,7 +71,11 @@ export function AppShell() {
       shared: '共享给我',
       trash: '回收站',
       settings: '个人设置',
-      admin: location.pathname.endsWith('/team') ? '管理后台 · 团队设置' : '管理后台 · 用户管理',
+      admin: location.pathname.endsWith('/team')
+        ? '管理后台 · 团队设置'
+        : location.pathname.endsWith('/index')
+          ? '管理后台 · 索引重建'
+          : '管理后台 · 用户管理',
     };
     const root = map[section];
     if (dir && section !== 'trash') return { root, leaf: baseName(dir) };
@@ -209,6 +214,11 @@ export function AppShell() {
               <span className="tree-caret" />
               <SafetyCertificateOutlined />
               <span className="tree-label">团队设置</span>
+            </Link>
+            <Link className={`tree-node${location.pathname === '/admin/index' ? ' on' : ''}`} to="/admin/index">
+              <span className="tree-caret" />
+              <DatabaseOutlined />
+              <span className="tree-label">索引重建</span>
             </Link>
           </div>
         )}

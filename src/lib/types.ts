@@ -19,6 +19,8 @@ export interface SessionUser {
   user_uuid: string;
   username: string;
   role: Role;
+  /** 首登/重置后必须改密；仅前端会话态，服务端以 Cognito 挑战为准 */
+  must_change_password?: boolean;
 }
 
 export interface DirItem {

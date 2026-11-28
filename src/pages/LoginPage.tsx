@@ -14,15 +14,15 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   const from = new URLSearchParams(location.search).get('redirect') || '/notes';
-  if (session) return <Navigate to={from} replace />;
+  if (session) return <Navigate to={session.mustChangePassword ? '/change-password' : from} replace />;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      await signIn(username, password);
-      navigate(from, { replace: true });
+      const next = await signIn(username, password);
+      navigate(next.mustChangePassword ? '/change-password' : from, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : '登录失败，请稍后重试');
     } finally {

@@ -14,6 +14,7 @@ interface AuthContextValue {
   session: AuthSession | null;
   signIn: (username: string, password: string) => Promise<AuthSession>;
   signOut: () => void;
+  changePassword: (password: string) => AuthSession;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -32,7 +33,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
   }, []);
 
-  const value = useMemo(() => ({ session, signIn, signOut }), [session, signIn, signOut]);
+  const changePassword = useCallback((password: string) => {
+    const next = authLib.completePasswordChange(password);
+    setSession(next);
+    return next;
+  }, []);
+
+  const value = useMemo(
+    () => ({ session, signIn, signOut, changePassword }),
+    [session, signIn, signOut, changePassword],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
@@ -49,6 +59,10 @@ export function RequireAuth() {
   if (!session) {
     const redirect = `${location.pathname}${location.search}`;
     return <Navigate to={`/login?redirect=${encodeURIComponent(redirect)}`} replace />;
+  }
+  // 首登/重置后未改密：除改密页外一律拦回，不能跳过
+  if (session.mustChangePassword) {
+    return <Navigate to="/change-password" replace />;
   }
   return <Outlet />;
 }
