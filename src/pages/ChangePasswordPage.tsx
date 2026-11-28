@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../app/AuthContext';
-import { validatePassword } from '../lib/auth';
+import { hasPendingPasswordChallenge, validatePassword } from '../lib/auth';
 
 /**
  * 首登 / 管理员重置密码后的强制改密页。
@@ -17,20 +17,21 @@ export function ChangePasswordPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!session) return <Navigate to="/login" replace />;
-  if (!session.mustChangePassword) return <Navigate to="/notes" replace />;
+  const pending = hasPendingPasswordChallenge();
+  if (!session && !pending) return <Navigate to="/login" replace />;
+  if (session && !session.mustChangePassword) return <Navigate to="/notes" replace />;
 
   const policyError = password ? validatePassword(password) : null;
   const mismatch = confirm.length > 0 && confirm !== password;
   const canSubmit = !busy && !policyError && !mismatch && password.length > 0 && confirm.length > 0;
 
-  function submit(event: React.FormEvent) {
+  async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!canSubmit) return;
     setBusy(true);
     setError(null);
     try {
-      changePassword(password);
+      await changePassword(password);
       navigate('/notes', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : '改密失败，请稍后重试');
@@ -50,9 +51,9 @@ export function ChangePasswordPage() {
         <p>首次登录或管理员重置密码后，需要改密才能进入工作台。</p>
       </section>
       <section className="login-right">
-        <form className="login-card" onSubmit={submit}>
+        <form className="login-card" onSubmit={(event) => void submit(event)}>
           <h2>设置新密码</h2>
-          <p className="sub">账号：{session.user.username}</p>
+          <p className="sub">账号：{session?.user.username ?? '新账号'}</p>
 
           {error && (
             <div className="banner error" style={{ border: 0, borderRadius: 'var(--r-sm)', marginBottom: 16 }}>

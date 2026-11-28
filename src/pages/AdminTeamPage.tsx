@@ -115,7 +115,7 @@ export function AdminTeamPage() {
           <dt>版本号</dt>
           <dd>v{draft.version}</dd>
           <dt>最近更新</dt>
-          <dd>{formatDateTime(draft.updated_at, uiLang)}</dd>
+          <dd>{draft.updated_at ? formatDateTime(draft.updated_at, uiLang) : '—'}</dd>
         </dl>
       </div>
     </div>

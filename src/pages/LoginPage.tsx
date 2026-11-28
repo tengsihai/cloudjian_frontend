@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../app/AuthContext';
-import { DEMO_LOGIN_HINT } from '../lib/auth';
+import { DEMO_LOGIN_HINT, PasswordChangeRequiredError } from '../lib/auth';
 
 export function LoginPage() {
   const { session, signIn } = useAuth();
@@ -24,6 +24,10 @@ export function LoginPage() {
       const next = await signIn(username, password);
       navigate(next.mustChangePassword ? '/change-password' : from, { replace: true });
     } catch (err) {
+      if (err instanceof PasswordChangeRequiredError) {
+        navigate('/change-password', { replace: true });
+        return;
+      }
       setError(err instanceof Error ? err.message : '登录失败，请稍后重试');
     } finally {
       setBusy(false);
@@ -92,9 +96,9 @@ export function LoginPage() {
             {busy ? '登录中…' : '登录'}
           </button>
 
-          <div className="login-hint">
-            演示账号：{DEMO_LOGIN_HINT}，其他账号为 li.na / demo、wang.bo / demo
-          </div>
+          {DEMO_LOGIN_HINT && (
+            <div className="login-hint">演示账号：{DEMO_LOGIN_HINT}</div>
+          )}
         </form>
       </section>
     </div>

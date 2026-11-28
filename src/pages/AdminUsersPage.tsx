@@ -75,7 +75,7 @@ export function AdminUsersPage() {
     if (!deleteTarget) return;
     setBusy(true);
     try {
-      await api.deleteUser(deleteTarget.user_uuid);
+      await api.deleteUser(deleteTarget.user_uuid, deleteTarget.username);
       toast('已提交删除任务，进度见任务中心');
       setDeleteTarget(null);
       setTyped('');

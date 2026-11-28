@@ -197,7 +197,7 @@ function VersionRow({
       <div className="t">
         <b>{formatDateTime(item.ts, lang)}</b>
         <span>
-          v{item.version} · {formatBytes(item.size)} · {item.author}
+          {item.version ? `v${item.version} · ` : ''}{formatBytes(item.size)}{item.author ? ` · ${item.author}` : ''}
         </span>
       </div>
       <button type="button" className="btn sm" onClick={onCompare}>
