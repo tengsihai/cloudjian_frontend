@@ -7,10 +7,10 @@ CloudJian 前端。本仓库目前是**脚手架**：构建产物推到 S3 的 `
 
 | 工作流 | 触发 | 干什么 | 凭证 |
 | --- | --- | --- | --- |
-| `ci.yml` | PR / push main | `npm ci` + `tsc --noEmit` + `vite build` | 无 |
+| `ci.yml` | PR → `release`、push `release` | `npm ci` + `tsc --noEmit` + `vite build` | 无 |
 | `deploy.yml` | push `release` | 校验「commit 来自已合并 PR」→ OIDC → 读 SSM → 构建 → `s3 sync` → 失效 CDN → 线上探测 | `environment: release` |
 
-分支模型：`feat/*` 开发 → PR 到 `main` → 合并 → 维护者把 `main` 快进到 `release` 触发发布。
+分支模型与 infra 一致：`feat/*` 开发 → PR 到 **`release`**（合并即发布）→ `main` 只归档。
 `release` 直推会被第一条校验拦下。
 
 首次使用需在仓库 Settings → Environments 建 `release`，加变量：
