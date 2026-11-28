@@ -14,7 +14,7 @@ interface AuthContextValue {
   session: AuthSession | null;
   signIn: (username: string, password: string) => Promise<AuthSession>;
   signOut: () => void;
-  changePassword: (password: string) => AuthSession;
+  changePassword: (password: string) => Promise<AuthSession>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -33,8 +33,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
   }, []);
 
-  const changePassword = useCallback((password: string) => {
-    const next = authLib.completePasswordChange(password);
+  const changePassword = useCallback(async (password: string) => {
+    const next = await authLib.completePasswordChange(password);
     setSession(next);
     return next;
   }, []);
